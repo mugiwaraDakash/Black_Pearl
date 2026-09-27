@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,7 +10,7 @@ class Settings(BaseSettings):
 
     # Set to true to use SQLite instead of Postgres (no Docker needed)
     USE_SQLITE: bool = True
-    SQLITE_DB_PATH: str = "./blackpearl.sqlite3"
+    SQLITE_DB_PATH: str = "/tmp/blackpearl.sqlite3" if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") else "./blackpearl.sqlite3"
 
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = "blackpearl123"
 
-    LEDGER_DB_PATH: str = "./evidence_ledger.sqlite3"
+    LEDGER_DB_PATH: str = "/tmp/evidence_ledger.sqlite3" if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") else "./evidence_ledger.sqlite3"
 
     GEO_API_BASE: str = "http://ip-api.com/json"
 
