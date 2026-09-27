@@ -202,9 +202,28 @@ def get_case_graph(case_id: str, db: Session = Depends(get_db)):
     if not case:
         raise HTTPException(404, "Case not found")
     try:
-        return neo4j_client.get_case_subgraph(case_id)
+        result = neo4j_client.get_case_subgraph(case_id)
+        if result is not None:
+            return result
     except Exception as e:
-        raise HTTPException(503, f"Graph database unavailable: {e}")
+        logger.warning("Neo4j graph unavailable, falling back to IOC-based graph: %s", e)
+
+    # Fallback: build a simple graph from the SQLite IOC data (no Neo4j needed)
+    iocs = db.query(IOC).filter(IOC.case_id == case_id).all()
+    email_node_id = f"email:{case_id}"
+    nodes = [{
+        "id": email_node_id,
+        "label": (case.subject or "email")[:40],
+        "type": "Email",
+    }]
+    edges = []
+    TYPE_REL = {"ip": "ORIGINATED_FROM", "domain": "REFERENCES_DOMAIN", "url": "CONTAINS_URL"}
+    for ioc in iocs:
+        node_id = f"{ioc.ioc_type}:{ioc.value}"
+        node_type = ioc.ioc_type.capitalize()
+        nodes.append({"id": node_id, "label": ioc.value, "type": node_type})
+        edges.append({"source": email_node_id, "target": node_id, "type": TYPE_REL.get(ioc.ioc_type, "LINKED_TO")})
+    return {"nodes": nodes, "edges": edges}
 
 
 @router.get("/cases/{case_id}/related")
@@ -212,7 +231,8 @@ def get_related_cases(case_id: str, db: Session = Depends(get_db)):
     try:
         return neo4j_client.find_related_cases(case_id)
     except Exception as e:
-        raise HTTPException(503, f"Graph database unavailable: {e}")
+        logger.warning("Neo4j unavailable for related cases query: %s", e)
+        return []
 
 
 @router.get("/cases/{case_id}/evidence-trail")
